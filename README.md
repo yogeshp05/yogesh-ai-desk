@@ -36,3 +36,10 @@ Open index.html in a browser. No build step is required for this first MVP.
 6. SEM and QA intelligence
 7. Proactive automations
 8. OAuth/API/MCP integrations
+
+
+## Architecture added
+
+The repository now includes a framework-independent domain model, Secretary analysis contract, local Node API runtime, approval boundary, adaptive workspace policy, and API-backed Secretary Chat with a safe browser fallback.
+
+Run the real local app with `npm start` and open `http://localhost:8787`.
