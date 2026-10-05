@@ -25,6 +25,15 @@ async function route(req,res){
     catch(e){return send(res,400,{error:e.message})}
   }
   if(req.method==="GET" && url.pathname==="/api/dashboard") return send(res,200,secretary.dashboard());
+  if(req.method==="POST" && url.pathname==="/api/approvals/approve"){
+    try{const input=await body(req);return send(res,200,secretary.approve(input.id,input.actor||"user"))}
+    catch(e){return send(res,400,{error:e.message})}
+  }
+  if(req.method==="POST" && url.pathname==="/api/approvals/reject"){
+    try{const input=await body(req);return send(res,200,secretary.reject(input.id,input.actor||"user"))}
+    catch(e){return send(res,400,{error:e.message})}
+  }
+
   if(req.method==="GET" && url.pathname==="/api/health") return send(res,200,{ok:true,service:"yogesh-ai-desk",version:"0.3.0"});
   const requested=url.pathname==="/" ? "/index.html" : url.pathname;
   const file=path.normalize(path.join(root,requested));
