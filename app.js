@@ -20,7 +20,7 @@ const toast=s=>{let e=document.getElementById('toast');e.textContent=s;e.classNa
 function taskRow(x){return '<div class="row"><div><button class="check '+(x.s==='Completed'?'done':'')+'" data-id="'+x.id+'"></button><b>'+esc(x.t)+'</b><div class="muted">'+esc(x.c)+' • Due '+esc(x.d)+'</div></div><span class="tag '+(x.p==='High'?'high':'orange')+'">'+esc(x.p)+'</span></div>'}
 function render(v){
  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
- const titles={day:'Good morning, Yogesh.',secretary:'Secretary Chat',tasks:'Tasks',projects:'Projects',meetings:'Meetings',waiting:'Waiting For',commitments:'Commitments',workspaces:'Dynamic Workspaces'};
+ const titles={day:'Good morning, Yogesh.',secretary:'Secretary Chat',tasks:'Tasks',projects:'Projects',meetings:'Meetings',waiting:'Waiting For',commitments:'Commitments',workspaces:'Dynamic Workspaces',approvals:'Approval Queue'};
  document.getElementById('title').textContent=titles[v];
  const a=document.getElementById('app');
  if(v==='secretary')return secretary(a);
@@ -29,7 +29,7 @@ function render(v){
  if(v==='meetings')return simple(a,'Meetings',st.meetings.map(x=>'<div class="row"><div><b>'+esc(x.t)+'</b><div class="muted">'+esc(x.time)+' • '+esc(x.c)+'</div></div><button class="primary" onclick="toast(\'Meeting prep engine is next\')">Prepare</button></div>').join(''));
  if(v==='waiting')return simple(a,'Waiting For',st.waiting.map(x=>'<div class="row"><div><b>'+esc(x.t)+'</b><div class="muted">Waiting on '+esc(x.p)+' • Follow up '+esc(x.f)+'</div></div></div>').join(''));
  if(v==='commitments')return simple(a,'Commitments',st.commitments.map(x=>'<div class="row"><div><b>'+esc(x.t)+'</b><div class="muted">To '+esc(x.p)+' • Due '+esc(x.d)+'</div></div><span class="tag high">Open</span></div>').join(''));
- if(v==='workspaces')return workspaces(a);
+ if(v==='workspaces')return workspaces(a);\n if(v==='approvals')return approvals(a);
  return day(a);
 }
 function day(a){
@@ -42,6 +42,20 @@ function simple(a,title,body){a.innerHTML='<div class="section"><h2>'+title+'</h
 function tasks(a){simple(a,'All Tasks',st.tasks.map(taskRow).join(''));bindChecks()}
 function projects(a){a.innerHTML='<div class="section"><h2>Projects</h2><button class="primary" onclick="render(\'secretary\')">+ Add via Secretary</button></div><div class="grid two">'+st.projects.map(x=>'<div class="card"><b>'+esc(x.name)+'</b><div class="muted">'+esc(x.c)+' • <span class="tag '+(x.h==='At Risk'?'high':'green')+'">'+esc(x.h)+'</span></div><p class="muted">'+esc(x.x)+'</p></div>').join('')+'</div>'}
 function workspaces(a){a.innerHTML='<div class="section"><h2>Dynamic Workspaces</h2></div><div class="notice"><b>Adaptive architecture:</b> recurring responsibilities that do not fit the current structure should be proposed as new workspaces. The Secretary must never silently redesign your system.</div><div class="grid two" style="margin-top:14px">'+st.workspaces.map(x=>'<div class="card"><b>◇ '+esc(x.n)+'</b><div class="muted">'+esc(x.x)+'</div><p class="muted">'+esc(x.d)+'</p></div>').join('')+'</div>'}
+function approvals(a){
+ fetch('/api/dashboard').then(r=>r.json()).then(d=>{
+   const items=d.approvals||[];
+   a.innerHTML='<div class="section"><h2>Approval Queue</h2></div><div class="card">'+(items.length?items.map(x=>'<div class="row"><div><b>'+esc(x.operation?.type||'Action')+'</b><div class="muted">'+esc(x.reason||'Approval required')+'</div><div class="muted">'+esc(JSON.stringify(x.operation?.payload||{}))+'</div></div><div><button class="primary" data-approve="'+x.id+'">Approve</button> <button data-reject="'+x.id+'">Reject</button></div></div>').join(''):'<div class="empty">No pending approvals.</div>')+'</div>';
+   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>resolveApproval(b.dataset.approve,'approve'));
+   document.querySelectorAll('[data-reject]').forEach(b=>b.onclick=()=>resolveApproval(b.dataset.reject,'reject'));
+ });
+}
+async function resolveApproval(id,action){
+ const r=await fetch('/api/approvals/'+action,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id})});
+ if(!r.ok){toast('Could not resolve approval');return}
+ await syncFromApi(); render('approvals'); toast(action==='approve'?'Approved':'Rejected');
+}
+
 function secretary(a){
  a.innerHTML='<div class="card chatbox"><div class="log" id="log">'+st.chat.map(x=>'<div class="bubble '+(x.r==='user'?'user':'ai')+'">'+esc(x.m).replace(/\n/g,'<br>')+'</div>').join('')+'</div><form class="compose" id="form"><textarea id="input" placeholder="Tell your Secretary anything…"></textarea><button class="primary">Send</button></form></div>';
  let log=document.getElementById('log');log.scrollTop=log.scrollHeight;document.getElementById('form').onsubmit=e=>{e.preventDefault();chat(document.getElementById('input').value)}
