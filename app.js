@@ -49,35 +49,43 @@ function secretary(a){
 async function chat(raw){
  let q=raw.trim();if(!q)return;
  st.chat.push({r:'user',m:q});render('secretary');
- let result;
  try{
-   const response=await fetch('/api/secretary/analyze',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q,context:{clients:['FMA','OrthoAtlanta','Internal','AI Marketing Daily','Falls at Blue Ridge'].map(name=>({id:name,name})),workspaces:st.workspaces.map(x=>({id:x.n,name:x.n}))}})});
+   const response=await fetch('/api/secretary/analyze',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q})});
    if(!response.ok)throw new Error('API unavailable');
-   result=await response.json();
- }catch(e){
-   result={summary:'Local fallback processed the message.',operations:[],questions:[],signals:['api_unavailable']};
-   const low=q.toLowerCase();
-   if(/need to|needs|todo|check|review|prepare|finish|send|create|update|follow up|ask /i.test(low))
-     result.operations.push({type:'upsert_task',payload:{title:q.slice(0,160),priority:/urgent|asap|high priority/i.test(low)?'high':'medium',dueText:(q.match(/\\b(today|tomorrow|friday|thursday|monday|this week|next week)\\b/i)||[])[1]||null}});
-   if(/promised|commit|i will|i'll/i.test(low))result.operations.push({type:'create_commitment',payload:{sourceText:q}});
- }
- let created=[];
- for(const op of result.operations||[]){
-   if(op.type==='upsert_task'){
-     st.tasks.unshift({id:Date.now()+created.length,t:op.payload.title,c:op.payload.clientId||'Unassigned',p:(op.payload.priority||'medium')==='high'?'High':'Medium',d:op.payload.dueText||'Unscheduled',s:'Inbox'});created.push('Task created');
-   }else if(op.type==='create_commitment'){
-     st.commitments.unshift({t:op.payload.sourceText||q,p:'Unassigned',d:op.payload.dueText||'Unscheduled'});created.push('Commitment captured');
-   }else if(op.type==='create_waiting_for'){
-     st.waiting.unshift({t:op.payload.sourceText||q,p:'Unassigned',f:op.payload.followUpText||'Next review'});created.push('Waiting-for item created');
-   }else if(op.type==='recommend_workspace'){
-     created.push('Workspace recommendation');
+   const result=await response.json();
+   let reply=result.summary||'I processed the message.';
+   const executable=(result.operations||[]).filter(x=>!x.approvalRequired);
+   const approvals=(result.operations||[]).filter(x=>x.approvalRequired);
+   if(executable.length){
+     const ex=await fetch('/api/secretary/execute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations:executable})});
+     if(!ex.ok)throw new Error('Execution failed');
+     const data=await ex.json();
+     reply+='\\n\\nExecuted '+data.results.filter(x=>x.status==='executed').length+' action(s).';
+     syncFromApi();
    }
+   if(approvals.length) reply+='\\n\\n'+approvals.length+' action(s) require your approval. Open the Approval Queue to review them.';
+   if((result.questions||[]).length)reply+='\\n\\nQuestion: '+result.questions.join(' ');
+   st.chat.push({r:'ai',m:reply});save();render('secretary');toast(approvals.length?'Approval required':'Secretary updated');
+ }catch(e){
+   st.chat.push({r:'ai',m:'I could not reach the Secretary backend. Your message was not executed. Please check that the local server is running.'});save();render('secretary');toast('Backend unavailable');
  }
- let reply=result.summary||'I processed the message.';
- if(created.length)reply+='\\n\\n• '+created.join('\\n• ');
- if((result.questions||[]).length)reply+='\\n\\nQuestion: '+result.questions.join(' ');
- if((result.signals||[]).includes('api_unavailable'))reply+='\\n\\nThe local API was unavailable, so I used the safe local fallback.';
- st.chat.push({r:'ai',m:reply});save();render('secretary');toast(created.join(' • ')||'Context captured');
+}
+async function syncFromApi(){
+ try{
+   const r=await fetch('/api/dashboard'); if(!r.ok)return;
+   const d=await r.json();
+   const map={task:'tasks',project:'projects',meeting:'meetings',waiting_for:'waiting',commitment:'commitments',workspace:'workspaces'};
+   for(const [type,key] of Object.entries(map)){
+     const rows=(d.entities||[]).filter(e=>e.type===type);
+     if(type==='task')st.tasks=rows.map(e=>({id:e.id,t:e.title,c:e.clientId||'Unassigned',p:(e.priority||'medium')[0].toUpperCase()+(e.priority||'medium').slice(1),d:e.dueText||'Unscheduled',s:(e.status||'inbox')[0].toUpperCase()+(e.status||'inbox').slice(1)}));
+     if(type==='project')st.projects=rows.map(e=>({name:e.name||e.title,c:e.clientId||'',h:e.health||'On Track',x:e.description||''}));
+     if(type==='meeting')st.meetings=rows.map(e=>({t:e.title,time:e.startAt||'',c:e.clientId||''}));
+     if(type==='waiting_for')st.waiting=rows.map(e=>({t:e.title,p:e.person||'Unassigned',f:e.followUpText||'Next review'}));
+     if(type==='commitment')st.commitments=rows.map(e=>({t:e.title,p:e.person||'Unassigned',d:e.dueText||'Unscheduled'}));
+     if(type==='workspace')st.workspaces=rows.map(e=>({n:e.name,x:'Dynamic Workspace',d:e.description||''}));
+   }
+   save();
+ }catch{}
 }
 function bindChecks(){document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{let x=st.tasks.find(t=>t.id==b.dataset.id);if(x){x.s=x.s==='Completed'?'Planned':'Completed';save();render('tasks');toast(x.s==='Completed'?'Task completed':'Task reopened')}})}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>render(b.dataset.v));
