@@ -2,44 +2,74 @@
 
 AI Secretary & Professional Work Operating System.
 
-## MVP in this repository
+## Current build: v0.3.0
+
+The app now has a real provider-free backend state layer instead of treating the browser UI as the source of truth.
+
+### Working capabilities
 
 - My Day dashboard
-- Workload intensity
-- AI executive briefing
+- Workload intensity engine
 - Natural-language Secretary Chat
-- Task extraction and completion
-- Projects and health
-- Meetings
-- Waiting For
-- Commitments
-- Dynamic Workspaces
-- Browser persistence with localStorage
+- Deterministic intent and entity analysis
+- Backend execution of safe Secretary operations
+- Persistent JSON state
+- Dashboard read model
+- Approval records for high-impact actions
+- Audit trail for Secretary execution
+- Tasks, projects, meetings, waiting-for, commitments and workspaces
+- Adaptive workspace recommendations
+- Browser UI synchronized with backend state
 
-## Product principle
+## Run locally
 
-The Secretary manages the work, not the predefined categories.
+Requires Node.js 20+.
 
-The long-term architecture will add a backend, relational data model, AI orchestration, specialized agents, integrations, scheduled automation, knowledge retrieval, approvals, audit logs and controlled execution.
+```bash
+npm start
+```
 
-## Run
+Open `http://localhost:8787`.
 
-Open index.html in a browser. No build step is required for this first MVP.
+Development mode:
 
-## Next
+```bash
+npm run dev
+```
 
-1. Backend and authentication
-2. Real Secretary Agent and structured entity model
-3. Calendar and meeting intelligence
-4. Communication workflows
-5. Project and client intelligence
-6. SEM and QA intelligence
-7. Proactive automations
-8. OAuth/API/MCP integrations
+State is stored locally in `data/state.json` and is intentionally gitignored. The JSON store is an MVP persistence layer; it can later be replaced by PostgreSQL or another production database without changing the domain contracts.
 
+## API
 
-## Architecture added
+- `GET /api/health`
+- `GET /api/dashboard`
+- `POST /api/secretary/analyze`
+- `POST /api/secretary/execute`
 
-The repository now includes a framework-independent domain model, Secretary analysis contract, local Node API runtime, approval boundary, adaptive workspace policy, and API-backed Secretary Chat with a safe browser fallback.
+The Secretary flow is:
 
-Run the real local app with `npm start` and open `http://localhost:8787`.
+`message → analyze → approval policy → execute → audit → workload → dashboard`
+
+## Architecture
+
+- `src/domain/schema.js` — canonical entities and relationships
+- `src/domain/secretary.js` — deterministic Secretary analysis
+- `src/domain/workload.js` — workload scoring
+- `src/application/secretary-service.js` — orchestration and execution
+- `src/infrastructure/store.js` — persistence and audit/approval storage
+- `server.mjs` — HTTP API and static server
+- `app.js` — responsive browser interface
+
+The architecture is deliberately provider-independent. An AI provider can later improve extraction and reasoning while the application keeps deterministic validation, approval controls, persistence and auditability around it.
+
+## Next major milestones
+
+1. Entity matching and duplicate detection
+2. Approval Queue UI
+3. Real project/client/workspace state seeding and migration
+4. Meeting preparation engine
+5. End-of-day and morning briefing APIs
+6. Authentication and production database
+7. AI provider abstraction
+8. Calendar/email/project-management integrations
+9. Specialized agents and proactive automation
