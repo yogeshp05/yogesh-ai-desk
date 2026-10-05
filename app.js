@@ -46,22 +46,38 @@ function secretary(a){
  a.innerHTML='<div class="card chatbox"><div class="log" id="log">'+st.chat.map(x=>'<div class="bubble '+(x.r==='user'?'user':'ai')+'">'+esc(x.m).replace(/\n/g,'<br>')+'</div>').join('')+'</div><form class="compose" id="form"><textarea id="input" placeholder="Tell your Secretary anything…"></textarea><button class="primary">Send</button></form></div>';
  let log=document.getElementById('log');log.scrollTop=log.scrollHeight;document.getElementById('form').onsubmit=e=>{e.preventDefault();chat(document.getElementById('input').value)}
 }
-function chat(raw){
- let q=raw.trim();if(!q)return;st.chat.push({r:'user',m:q});let low=q.toLowerCase(),actions=[],reply='';
- let client=['FMA','OrthoAtlanta','Internal','AI Marketing Daily','Falls at Blue Ridge'].find(x=>low.includes(x.toLowerCase()));
- let dm=q.match(/\b(today|tomorrow|friday|thursday|monday|this week|next week)\b/i);
- if(/responsible for|new responsibility|now handling|new workstream/i.test(low)){
-  let m=q.match(/(?:responsible for|new responsibility|now handling|new workstream)\s+(?:is\s+)?(.+?)(?:\.|$)/i),name=(m&&m[1]?m[1]:'New Responsibility').trim();
-  if(!st.workspaces.some(x=>x.n.toLowerCase()===name.toLowerCase()))reply='I noticed a potentially new recurring responsibility: “'+name+'”. I have not created it silently. I recommend a new dynamic workspace so related projects, tasks, research and knowledge can live together. Approve it from Workspaces before creation.';
-  else reply='That responsibility already has a workspace. I will keep new work linked there.';
- }else{
-  if(/need to|needs|todo|check|review|prepare|finish|send|create|update|follow up|ask /i.test(low)){
-   st.tasks.unshift({id:Date.now(),t:q.slice(0,120),c:client||'Unassigned',p:/urgent|asap|high priority/i.test(low)?'High':'Medium',d:dm?dm[1]:'Unscheduled',s:'Inbox'});actions.push('Task created')}
-  if(/promised|commit|i will|i'll/i.test(low)){st.commitments.unshift({t:q.slice(0,100),p:'Unassigned',d:dm?dm[1]:'Unscheduled'});actions.push('Commitment captured')}
-  if(/waiting on|awaiting|waiting for|follow up/i.test(low)){st.waiting.unshift({t:q.slice(0,100),p:'Unassigned',f:dm?dm[1]:'Next review'});actions.push('Waiting-for item created')}
-  reply=actions.length?'Understood. I processed this as structured work:\n• '+actions.join('\n• ')+'\n\nI will surface it on the relevant dashboard.':'I captured the context, but I do not see a clear action, commitment, waiting-for item, or new responsibility yet. I will not invent a task.';
+async function chat(raw){
+ let q=raw.trim();if(!q)return;
+ st.chat.push({r:'user',m:q});render('secretary');
+ let result;
+ try{
+   const response=await fetch('/api/secretary/analyze',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({message:q,context:{clients:['FMA','OrthoAtlanta','Internal','AI Marketing Daily','Falls at Blue Ridge'].map(name=>({id:name,name})),workspaces:st.workspaces.map(x=>({id:x.n,name:x.n}))}})});
+   if(!response.ok)throw new Error('API unavailable');
+   result=await response.json();
+ }catch(e){
+   result={summary:'Local fallback processed the message.',operations:[],questions:[],signals:['api_unavailable']};
+   const low=q.toLowerCase();
+   if(/need to|needs|todo|check|review|prepare|finish|send|create|update|follow up|ask /i.test(low))
+     result.operations.push({type:'upsert_task',payload:{title:q.slice(0,160),priority:/urgent|asap|high priority/i.test(low)?'high':'medium',dueText:(q.match(/\\b(today|tomorrow|friday|thursday|monday|this week|next week)\\b/i)||[])[1]||null}});
+   if(/promised|commit|i will|i'll/i.test(low))result.operations.push({type:'create_commitment',payload:{sourceText:q}});
  }
- st.chat.push({r:'ai',m:reply});save();render('secretary');toast(actions.join(' • ')||'Context captured')
+ let created=[];
+ for(const op of result.operations||[]){
+   if(op.type==='upsert_task'){
+     st.tasks.unshift({id:Date.now()+created.length,t:op.payload.title,c:op.payload.clientId||'Unassigned',p:(op.payload.priority||'medium')==='high'?'High':'Medium',d:op.payload.dueText||'Unscheduled',s:'Inbox'});created.push('Task created');
+   }else if(op.type==='create_commitment'){
+     st.commitments.unshift({t:op.payload.sourceText||q,p:'Unassigned',d:op.payload.dueText||'Unscheduled'});created.push('Commitment captured');
+   }else if(op.type==='create_waiting_for'){
+     st.waiting.unshift({t:op.payload.sourceText||q,p:'Unassigned',f:op.payload.followUpText||'Next review'});created.push('Waiting-for item created');
+   }else if(op.type==='recommend_workspace'){
+     created.push('Workspace recommendation');
+   }
+ }
+ let reply=result.summary||'I processed the message.';
+ if(created.length)reply+='\\n\\n• '+created.join('\\n• ');
+ if((result.questions||[]).length)reply+='\\n\\nQuestion: '+result.questions.join(' ');
+ if((result.signals||[]).includes('api_unavailable'))reply+='\\n\\nThe local API was unavailable, so I used the safe local fallback.';
+ st.chat.push({r:'ai',m:reply});save();render('secretary');toast(created.join(' • ')||'Context captured');
 }
 function bindChecks(){document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{let x=st.tasks.find(t=>t.id==b.dataset.id);if(x){x.s=x.s==='Completed'?'Planned':'Completed';save();render('tasks');toast(x.s==='Completed'?'Task completed':'Task reopened')}})}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>render(b.dataset.v));
