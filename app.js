@@ -91,7 +91,8 @@ async function syncFromApi(){
  try{
    const r=await fetch('/api/dashboard'); if(!r.ok)return;
    const d=await r.json();
-   const map={task:'tasks',project:'projects',meeting:'meetings',waiting_for:'waiting',commitment:'commitments',workspace:'workspaces'};\n   const clients=Object.fromEntries((d.entities||[]).filter(e=>e.type==='client').map(e=>[e.id,e.name||e.title]));\n   st.workload=d.workload||null;
+   const map={task:'tasks',project:'projects',meeting:'meetings',waiting_for:'waiting',commitment:'commitments',workspace:'workspaces'};
+   const clients=Object.fromEntries((d.entities||[]).filter(e=>e.type==='client').map(e=>[e.id,e.name||e.title]));\n   st.workload=d.workload||null;
    for(const [type,key] of Object.entries(map)){
      const rows=(d.entities||[]).filter(e=>e.type===type);
      if(type==='task')st.tasks=rows.map(e=>({id:e.id,t:e.title,c:clients[e.clientId]||'Unassigned',p:(e.priority||'medium')[0].toUpperCase()+(e.priority||'medium').slice(1),d:e.dueText||'Unscheduled',s:(e.status||'inbox')[0].toUpperCase()+(e.status||'inbox').slice(1)}));
