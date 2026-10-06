@@ -82,9 +82,9 @@ async function chat(raw){
      await syncFromApi();
    }
    if((result.questions||[]).length)reply+='\\n\\nQuestion: '+result.questions.join(' ');
-   st.chat.push({r:'ai',m:reply});save();render('secretary');toast(approvals.length?'Approval required':'Secretary updated');
+   st.chat.push({r:'ai',m:reply});save();render('secretary');toast(pending?'Approval required':'Secretary updated');
  }catch(e){
-   st.chat.push({r:'ai',m:'I could not reach the Secretary backend. Your message was not executed. Please check that the local server is running.'});save();render('secretary');toast('Backend unavailable');
+   st.chat.push({r:'ai',m:'I could not reach the Secretary backend. Your message was not executed. Please check the Secretary connection and try again.'});save();render('secretary');toast('Backend unavailable');
  }
 }
 async function syncFromApi(){
