@@ -30,7 +30,11 @@ export class SecretaryService {
   }
   apply(op) {
     const p = op.payload || {};
-    if (op.type === "upsert_task") return this.store.insert("task", { title:p.title, clientId:p.clientId, dueText:p.dueText, priority:p.priority||"medium", status:"inbox" });
+    if (op.type === "upsert_task") {
+      const existing = p.id ? this.store.find(p.id) : null;
+      if (existing) return this.store.upsert({ ...existing, ...p, type:"task" });
+      return this.store.insert("task", { title:p.title, clientId:p.clientId, dueText:p.dueText, priority:p.priority||"medium", status:"inbox" });
+    }
     if (op.type === "create_commitment") return this.store.insert("commitment", { title:p.sourceText||p.title, dueText:p.dueText, status:"open" });
     if (op.type === "create_waiting_for") return this.store.insert("waiting_for", { title:p.sourceText||p.title, followUpText:p.followUpText, status:"open" });
     throw new Error("Unsupported operation: " + op.type);
