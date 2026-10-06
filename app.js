@@ -13,7 +13,7 @@ waiting:[{t:'DexCare connector update',p:'Cecilia',f:'This week'},{t:'Conversion
 commitments:[{t:'Send FMA first report draft',p:'Hamish',d:'Thursday'},{t:'Follow up on DexCare connector',p:'Cecilia',d:'This week'}],
 workspaces:[{n:'SEM & Performance Marketing',x:'Responsibility',d:'Paid media, SEM, tracking, audits and client strategy.'},{n:'Project Management & Delivery',x:'Responsibility',d:'Cross-functional delivery, approvals, budgets and reporting.'},{n:'AI R&D / Innovation',x:'Responsibility',d:'AI, automation, agents, APIs, MCP and internal tools.'}],
 chat:[{r:'ai',m:'Secretary online. Tell me anything about your work in natural language. I will turn it into structured work, update existing items where possible, and flag decisions that need you.'}]};
-let st=JSON.parse(localStorage.getItem(KEY)||'null')||seed;
+let st=JSON.parse(localStorage.getItem(KEY)||'null')||seed;\nst.workload=st.workload||null;
 const save=()=>localStorage.setItem(KEY,JSON.stringify(st));
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 const toast=s=>{let e=document.getElementById('toast');e.textContent=s;e.className='show';setTimeout(()=>e.className='',1800)};
@@ -88,12 +88,12 @@ async function syncFromApi(){
  try{
    const r=await fetch('/api/dashboard'); if(!r.ok)return;
    const d=await r.json();
-   const map={task:'tasks',project:'projects',meeting:'meetings',waiting_for:'waiting',commitment:'commitments',workspace:'workspaces'};
+   const map={task:'tasks',project:'projects',meeting:'meetings',waiting_for:'waiting',commitment:'commitments',workspace:'workspaces'};\n   const clients=Object.fromEntries((d.entities||[]).filter(e=>e.type==='client').map(e=>[e.id,e.name||e.title]));\n   st.workload=d.workload||null;
    for(const [type,key] of Object.entries(map)){
      const rows=(d.entities||[]).filter(e=>e.type===type);
-     if(type==='task')st.tasks=rows.map(e=>({id:e.id,t:e.title,c:e.clientId||'Unassigned',p:(e.priority||'medium')[0].toUpperCase()+(e.priority||'medium').slice(1),d:e.dueText||'Unscheduled',s:(e.status||'inbox')[0].toUpperCase()+(e.status||'inbox').slice(1)}));
-     if(type==='project')st.projects=rows.map(e=>({name:e.name||e.title,c:e.clientId||'',h:e.health||'On Track',x:e.description||''}));
-     if(type==='meeting')st.meetings=rows.map(e=>({t:e.title,time:e.startAt||'',c:e.clientId||''}));
+     if(type==='task')st.tasks=rows.map(e=>({id:e.id,t:e.title,c:clients[e.clientId]||'Unassigned',p:(e.priority||'medium')[0].toUpperCase()+(e.priority||'medium').slice(1),d:e.dueText||'Unscheduled',s:(e.status||'inbox')[0].toUpperCase()+(e.status||'inbox').slice(1)}));
+     if(type==='project')st.projects=rows.map(e=>({name:e.name||e.title,c:clients[e.clientId]||'',h:(e.health||'on_track').replaceAll('_',' ').replace(/\\b\\w/g,m=>m.toUpperCase()),x:e.description||'',x:e.description||''}));
+     if(type==='meeting')st.meetings=rows.map(e=>({t:e.title,time:e.startAt||'',c:clients[e.clientId]||''}));
      if(type==='waiting_for')st.waiting=rows.map(e=>({t:e.title,p:e.person||'Unassigned',f:e.followUpText||'Next review'}));
      if(type==='commitment')st.commitments=rows.map(e=>({t:e.title,p:e.person||'Unassigned',d:e.dueText||'Unscheduled'}));
      if(type==='workspace')st.workspaces=rows.map(e=>({n:e.name,x:'Dynamic Workspace',d:e.description||''}));
