@@ -1,0 +1,29 @@
+name: MVP CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: |
+          node --check server.mjs
+          node --check src/application/secretary-service.js
+          node --check src/domain/secretary.js
+          node --check src/domain/schema.js
+          node --check src/domain/workload.js
+          node --check app.js
+      - run: |
+          node server.mjs > /tmp/yad.log 2>&1 &
+          pid=$!
+          trap "kill $pid" EXIT
+          sleep 1
+          curl --fail http://127.0.0.1:8787/api/health
+          curl --fail http://127.0.0.1:8787/api/dashboard
+          curl --fail -X POST http://127.0.0.1:8787/api/secretary/analyze             -H 'content-type: application/json'             -d '{"message":"Prepare the FMA report by Friday"}'
