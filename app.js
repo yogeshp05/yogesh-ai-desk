@@ -68,16 +68,19 @@ async function chat(raw){
    if(!response.ok)throw new Error('API unavailable');
    const result=await response.json();
    let reply=result.summary||'I processed the message.';
-   const executable=(result.operations||[]).filter(x=>!x.approvalRequired);
-   const approvals=(result.operations||[]).filter(x=>x.approvalRequired);
-   if(executable.length){
-     const ex=await fetch('/api/secretary/execute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations:executable})});
+   const operations=result.operations||[];
+   if(operations.length){
+     const ex=await fetch('/api/secretary/execute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations})});
      if(!ex.ok)throw new Error('Execution failed');
      const data=await ex.json();
-     reply+='\\n\\nExecuted '+data.results.filter(x=>x.status==='executed').length+' action(s).';
-     syncFromApi();
+     const executed=data.results.filter(x=>x.status==='executed').length;
+     const pending=data.results.filter(x=>x.status==='approval_required').length;
+     const matched=data.results.filter(x=>x.status==='skipped_duplicate_or_match').length;
+     if(executed) reply+='\\n\\nExecuted '+executed+' action(s).';
+     if(matched) reply+='\\n\\nMatched '+matched+' existing item(s); no duplicate was created.';
+     if(pending) reply+='\\n\\n'+pending+' action(s) were added to your Approval Queue.';
+     await syncFromApi();
    }
-   if(approvals.length) reply+='\\n\\n'+approvals.length+' action(s) require your approval. Open the Approval Queue to review them.';
    if((result.questions||[]).length)reply+='\\n\\nQuestion: '+result.questions.join(' ');
    st.chat.push({r:'ai',m:reply});save();render('secretary');toast(approvals.length?'Approval required':'Secretary updated');
  }catch(e){
