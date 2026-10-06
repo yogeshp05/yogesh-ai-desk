@@ -101,7 +101,7 @@ async function syncFromApi(){
    save();
  }catch{}
 }
-function bindChecks(){document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{let x=st.tasks.find(t=>t.id==b.dataset.id);if(x){x.s=x.s==='Completed'?'Planned':'Completed';save();render('tasks');toast(x.s==='Completed'?'Task completed':'Task reopened')}})}
+function bindChecks(){document.querySelectorAll('[data-id]').forEach(b=>b.onclick=async()=>{let x=st.tasks.find(t=>t.id==b.dataset.id);if(!x)return;const next=x.s==='Completed'?'planned':'completed';try{const r=await fetch('/api/secretary/execute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({operations:[{type:'upsert_task',entity:'task',payload:{id:x.id,status:next}}]})});if(!r.ok)throw new Error();await syncFromApi();render('tasks');toast(next==='completed'?'Task completed':'Task reopened')}catch{toast('Could not update task')}})}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>render(b.dataset.v));
 document.getElementById('chat').onclick=()=>render('secretary');
-render('day');
+syncFromApi().then(()=>render('day')).catch(()=>render('day'));
